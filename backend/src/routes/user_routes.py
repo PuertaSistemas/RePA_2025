@@ -28,13 +28,13 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     """
     Registrar un nuevo usuario con el rol "user" por defecto.
-    
+
     Args:
         user_in (UserCreate): Datos del usuario a crear.
     Return:
         new_user (UserOut): Usuario Creado.
     """
-    
+
     # Verificar si el usuario ya existe
     existing_user = db.query(User).filter(User.email == user_in.email).first()
     if existing_user:
@@ -54,13 +54,13 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
 
     # Crear el nuevo usuario
     new_user = User(
-        id=new_user_id, 
+        id=new_user_id,
         email=user_in.email,
         is_active=False,
         hashed_password=hashed_password,
         created_at=datetime.now(timezone.utc),
     )
-    
+
     # Asignar el rol "user" por defecto
     user_role = db.query(Role).filter(Role.rol == "user").first()
 
@@ -73,21 +73,21 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
 
     # Asociar el rol al nuevo usuario
     new_user.roles.append(user_role)
-    
+
     # Crear el token de Verificación de correo electrónico
     # Generar token de registro (24h de validez)
     registration_token = create_access_token(
         data={"sub": new_user_id, "roles": ["unverified"]},
         expires_delta=1440  # 24 horas en minutos
     )
-    
+
     # Guardar token de recuperación
     recovery_record = TokenRecovery(
         user_id=new_user_id,
         token_payload=registration_token,
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=1440),
     )
-    
+
     # Guardar el nuevo usuario y el token de recuperación en la base de datos
     try:
         db.add(new_user)
@@ -102,7 +102,7 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     # Envío de email (ejemplo simplificado) Agregar la variable de entrono de URL_SITE
     verification_url = f"{URL_SITE}/users/confirm/{registration_token}"
     print(f"URL de verificación: {verification_url}")  # En producción usar servicio de email
-    
+
     return new_user # Retorna el usuario creado{"detail": "Registro exitoso. Verifica tu email"}
 
 # 2. Endpoint de Verificación
@@ -117,7 +117,7 @@ async def confirm_registration(token: str, db: Session = Depends(get_db)):
     token_record = db.query(TokenRecovery).filter(token == TokenRecovery.token_payload, TokenRecovery.is_active == True).first()
     if token_record is None:
         raise HTTPException(status_code=404, detail="Token no encontrado o inactivo")
-    
+
     try:
 
         # Verificar token
@@ -127,23 +127,23 @@ async def confirm_registration(token: str, db: Session = Depends(get_db)):
         # Validaciones críticas
         if payload.get("type") != "access" or "unverified" not in payload.get("roles", []):
             raise HTTPException(status_code=400, detail="Token inválido")
-        
+
         user_id = payload.get("sub")
         user = db.query(User).filter(User.id == user_id).first()
-        
+
         if not user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        
+
         # Activar usuario y eliminar token
         user.is_active = True
         db.query(TokenRecovery).filter(
             TokenRecovery.token_payload == token,
             TokenRecovery.is_active == True
         ).update({"is_active": False})
-        
+
         db.commit()
         return {"detail": "Cuenta verificada exitosamente"}
-    
+
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=400, detail="Token expirado")
     except jwt.JWTError:
@@ -162,17 +162,17 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Correo electrónico o contraseña incorrectos",
         )
-    
+
     # Verificar la contraseña
     if not pwd_context.verify(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Correo electrónico o contraseña incorrectos",
         )
-    
+
     # Actualizar la fecha y hora del último acceso
     update_last_login(user.email, db)
-    
+
     # Convertir usuario a formato UserOut compatible con JSON
     data_access = {
         "id": user.id,
@@ -183,7 +183,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         "roles": [{"id": role.id, "rol": role.rol} for role in user.roles],
         "type": "access"
     }
-    
+
     data_refresh = {
         "id": user.id,
         "email": user.email,
@@ -207,8 +207,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     )
 
     return {
-        "access_token": access_token, 
-        "refresh_token": refresh_token, 
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer"
     }
 
@@ -228,7 +228,7 @@ async def recovery_passwd_user(user_in: UserUpdate, db: Session = Depends(get_db
     user= db.query(User).filter(User.email == user_in.email).first()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Usuario no existe")
     validar_password(user_in.password)
     hashed_password = get_password_hash(user_in.password)
@@ -237,14 +237,14 @@ async def recovery_passwd_user(user_in: UserUpdate, db: Session = Depends(get_db
         data={"sub": user.id, "new_password": hashed_password},
         expires_delta=1440  # 24 horas en minutos
     )
-    
+
     # Guardar token de recuperación
     recovery_record = TokenRecovery(
         user_id=user.id,
         token_payload=registration_token,
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=1440),
     )
-    
+
     # Guardar el nuevo usuario y el token de recuperación en la base de datos
     try:
         db.add(recovery_record)
@@ -258,8 +258,8 @@ async def recovery_passwd_user(user_in: UserUpdate, db: Session = Depends(get_db
     # Envío de email (ejemplo simplificado) Agregar la variable de entrono de URL_SITE
     verification_url = f"{URL_SITE}/users/recovery/{registration_token}"
     print(f"URL de verificación: {verification_url}")  # En producción usar servicio de email
-    
-    return user # Retorna el usuario 
+
+    return user # Retorna el usuario
 
 # Recuperar la contraseña del usuario
 @user_router.get("/recovery/{token}", response_model=UserOut, description="Recuperar la contraseña del usuario")
@@ -277,7 +277,7 @@ async def recovery_passwd(token: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Usuario no existe")
     # Actualizar la contraseña del usuario
     user.hashed_password = payload.get("new_password")
@@ -286,18 +286,18 @@ async def recovery_passwd(token: str, db: Session = Depends(get_db)):
     db.refresh(user)
     # Eliminar el token de recuperación
     db.query(TokenRecovery).filter(TokenRecovery.user_id == user_id).delete()
-    db.commit() 
+    db.commit()
 
     return user
 
 # Obtener los datos del usuario actual
 @user_router.get("/me", response_model=UserOut, description="Obtener datos del usuario actual")
-async def read_users_me(current_user: dict = Depends(get_current_user)):
+async def read_users_me(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """
     Obtener los datos del usuario actual.
     """
     # Buscar el usuario en la base de datos
-    user = db.query(User).filter(User.email == current_user["sub"]).first()
+    user = db.query(User).filter(User.email == current_user["email"]).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -318,18 +318,18 @@ async def update_user(user_in: UserUpdate, current_user: dict = Depends(get_curr
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Usuario no encontrado",
         )
-    
+
     # Actualizar los datos del usuario
     if user_in.email:
         user.email = user_in.email # Actualizar el correo electrónico si se proporciona y no hay duplicados
     if user_in.password:
         validar_password(user_in.password)
         user.hashed_password = get_password_hash(user_in.password)
-    
+
     # Guardar los cambios
     db.commit()
     db.refresh(user)
-    
+
     # Devolver el usuario actualizado
     return user
 

@@ -110,6 +110,8 @@ class Title(Base):
     avant_site = Column(String, nullable=True)
     avant_iaavim = Column(Boolean, default=False)
 
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    user = relationship("User", back_populates="titles") # Relación uno a muchos con usuario
     content_types = relationship('ContentType', secondary=title_content_types, back_populates='titles')
     classifications = relationship('Classification', secondary=title_classifications, back_populates='titles')
     genres = relationship('Genre', secondary=title_genres, back_populates='titles')

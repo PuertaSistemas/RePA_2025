@@ -13,7 +13,7 @@ class TokenRecovery(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
-    
+
 # Modelo asociativa para la relación muchos a muchos entre usuarios y roles
 class UserRole(Base):
     __tablename__ = "user_roles"
@@ -41,3 +41,4 @@ class User(Base):
     roles = relationship("Role", secondary="user_roles", backref="users")
     trainings = relationship("Training", back_populates="user")  # Relación 1:N con Training
     trabajos = relationship('Work', back_populates='user') # Relación 1:N con Trabajo
+    titles = relationship("Title", back_populates="user") # Relación 1:N con Title
